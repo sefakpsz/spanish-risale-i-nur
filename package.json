@@ -2,10 +2,13 @@
   "name": "spanish-risale-i-nur",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start --dev-client",
-    "android": "expo run:android",
+    "android": "node scripts/run-android.mjs",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "check": "expo-doctor"
@@ -27,6 +30,7 @@
     "react-native": "0.88.1",
     "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "~4.30.1",
+    "react-native-svg": "^15.16.0",
     "react-native-web": "^0.21.4"
   },
   "devDependencies": {
