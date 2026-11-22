@@ -29,6 +29,8 @@ export type Book = {
   testOnly?: boolean;
 };
 
-// The Spanish edition is a local development preview until distribution permission is documented.
-export const books: Book[] = __DEV__ ? [ramadanLocalBook] : [];
+// The Spanish edition is a local preview until distribution permission is documented.
+// Release builds stay empty unless a private test build explicitly opts in.
+const includeLocalBook = __DEV__ || process.env.EXPO_PUBLIC_INCLUDE_LOCAL_BOOK === "true";
+export const books: Book[] = includeLocalBook ? [ramadanLocalBook] : [];
 export const findBook = (id: string) => books.find((book) => book.id === id);
