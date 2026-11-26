@@ -10,7 +10,7 @@ Readers using a focused mobile book library. They browse multiple books, read on
 
 ## Product Purpose
 
-Provide a calm, accessible reader foundation for authorized Spanish editions of the Risale-i Nur collection and other books. The current Lemalar entry is a local development fixture used to validate extraction and reader behavior before licensed Spanish content is supplied.
+Provide a calm, accessible reader foundation for authorized Spanish editions of the Risale-i Nur collection. The active development catalog contains only *Tratados Sobre Ramadán, Frugalidad y Agradecimiento* while publisher permission is unresolved.
 
 ## Brand Personality
 

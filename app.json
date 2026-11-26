@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Spanish Risale-i Nur",
+    "name": "Risale-i Nur",
     "slug": "spanish-risale-i-nur",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.spanishrisaleinur.reader"
