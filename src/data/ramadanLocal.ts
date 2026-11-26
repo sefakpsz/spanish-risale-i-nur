@@ -84,7 +84,12 @@ export const ramadanLocalBook: Book = {
   author: "Bedîüzzaman Said Nursî",
   category: "Faith and reflection",
   description: "Edición española de Nur Ediciones, traducida por Lorena Lara.",
-  cover: { background: "#342D2A", accent: "#D8C79B", mark: "ر" },
+  cover: {
+    background: "#781C20",
+    accent: "#F0CC72",
+    mark: "ر",
+    image: require("../../assets/RamadanCover-local.png"),
+  },
   chapters,
   testOnly: true,
 };

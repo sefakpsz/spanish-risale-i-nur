@@ -1,3 +1,5 @@
+import type { ImageSourcePropType } from "react-native";
+
 export type Chapter = {
   id: string;
   title: string;
@@ -22,7 +24,7 @@ export type Book = {
   author: string;
   category: string;
   description: string;
-  cover: { background: string; accent: string; mark: string };
+  cover: { background: string; accent: string; mark: string; image?: ImageSourcePropType };
   chapters: Chapter[];
   kind?: "chapters" | "pdf";
   pageCount?: number;

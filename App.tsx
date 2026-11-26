@@ -38,10 +38,17 @@ function Label({ children, style }: React.PropsWithChildren<{ style?: object }>)
   return <Text style={[s.label, style]}>{children}</Text>;
 }
 
-function Cover({ book, large = false }: { book: Book; large?: boolean }) {
+function Cover({ book, large = false, shelf = false }: { book: Book; large?: boolean; shelf?: boolean }) {
   const { s } = useUi();
   const { text } = useLocale();
-  return <View style={[s.cover, large && s.coverLarge, { backgroundColor: book.cover.background }]}>
+  if (book.cover.image) {
+    return <Image
+      source={book.cover.image}
+      resizeMode="contain"
+      style={[s.coverArtwork, large && s.coverArtworkLarge, shelf && s.shelfCover]}
+    />;
+  }
+  return <View style={[s.cover, large && s.coverLarge, shelf && s.shelfCover, { backgroundColor: book.cover.background }]}>
     <View style={[s.coverInset, { borderColor: `${book.cover.accent}77` }]} />
     <View style={s.coverTitleWrap}>
       <Text numberOfLines={2} style={[s.coverTitle, large && s.coverTitleLarge]}>{book.title}</Text>
@@ -49,7 +56,40 @@ function Cover({ book, large = false }: { book: Book; large?: boolean }) {
       <Text numberOfLines={2} style={[s.coverSubtitle, { color: `${book.cover.accent}DD` }]}>{book.subtitle}</Text>
     </View>
     <Text style={[s.coverMark, { color: book.cover.accent }]}>{book.cover.mark}</Text>
-    <Text style={[s.coverFooter, { color: `${book.cover.accent}BB` }]}>{text("sampleCover")}</Text>
+    {!shelf && <Text style={[s.coverFooter, { color: `${book.cover.accent}BB` }]}>{text("sampleCover")}</Text>}
+  </View>;
+}
+
+function HomeBookshelf({ onOpen }: { onOpen: (bookId: string) => void }) {
+  const { s } = useUi();
+  const { text } = useLocale();
+  const [focusedBookId, setFocusedBookId] = useState<string>();
+  if (!books.length) return <Text style={s.emptyText}>{text("noBooksAvailable")}</Text>;
+
+  return <View style={s.bookshelf}>
+    <View style={s.shelfBacking}>
+      <View pointerEvents="none" style={s.shelfRecess} />
+      <View pointerEvents="none" style={s.shelfDeck} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.shelfBooks}>
+        {books.map((book) => <Pressable
+          key={book.id}
+          accessibilityRole="button"
+          accessibilityLabel={`${text("openBook")} ${book.title}`}
+          onPress={() => onOpen(book.id)}
+          onFocus={() => setFocusedBookId(book.id)}
+          onBlur={() => setFocusedBookId(undefined)}
+          style={({ pressed }) => [
+            s.shelfBook,
+            focusedBookId === book.id && s.shelfBookFocused,
+            pressed && s.pressed,
+          ]}
+        >
+          <View pointerEvents="none" style={s.shelfBookShadow} />
+          <Cover book={book} shelf />
+        </Pressable>)}
+      </ScrollView>
+      <View pointerEvents="none" style={s.shelfLedge} />
+    </View>
   </View>;
 }
 
@@ -144,12 +184,10 @@ function HomeScreen() {
   const resumeChapter = resume ? progress[resume.id] ?? 0 : 0;
   return <ScrollView style={s.screen} contentContainerStyle={[s.page, d.page]} keyboardShouldPersistTaps="handled">
     <View style={s.topline}><Text style={s.brand}>Risale-i Nur</Text><View style={s.headerActions}>{__DEV__ && <LanguageToggle />}<ThemeToggle /></View></View>
+    {resume && <View style={s.resumePanel}><View style={s.resumeIcon}><Text style={s.resumeGlyph}>↗</Text></View><View style={s.resumeCopy}><Label>{text("continueReading").toLocaleUpperCase(language)}</Label><Text style={s.resumeTitle}>{resume.title}</Text><Text style={s.resumeMeta}>{resume.chapters[resumeChapter]?.title}</Text></View><Pressable onPress={() => navigation.navigate("Reader", { bookId: resume.id, chapterIndex: resumeChapter })} style={s.resumeButton} accessibilityLabel={text("continueReading")}><Text style={s.resumeButtonText}>›</Text></Pressable></View>}
     <View style={s.searchBox}><Text style={s.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder={text("searchHome")} placeholderTextColor={C.muted} keyboardAppearance={scheme} style={s.searchInput} returnKeyType="search" accessibilityLabel={text("searchHome")} /></View>
-    {query.length > 0 ? <><SectionTitle title={text("resultsTitle")} hint={`${filtered.length} ${text("results")}`} />{filtered.length ? filtered.map((book) => <BookCard key={book.id} book={book} onPress={() => navigation.navigate("Detail", { bookId: book.id })} />) : <Text style={s.emptyText}>{text(books.length ? "noResults" : "noBooksAvailable")}</Text>}</> : <>
-      {resume && <View style={s.resumePanel}><View style={s.resumeIcon}><Text style={s.resumeGlyph}>↗</Text></View><View style={s.resumeCopy}><Label>{text("continueReading").toLocaleUpperCase(language)}</Label><Text style={s.resumeTitle}>{resume.title}</Text><Text style={s.resumeMeta}>{resume.chapters[resumeChapter]?.title}</Text></View><Pressable onPress={() => navigation.navigate("Reader", { bookId: resume.id, chapterIndex: resumeChapter })} style={s.resumeButton} accessibilityLabel={text("continueReading")}><Text style={s.resumeButtonText}>›</Text></Pressable></View>}
-      {books.length > 0 ? <><SectionTitle title={text("library")} action={books.length > 1 ? () => navigation.navigate("Library") : undefined} />
-        {books.map((book) => <BookCard key={book.id} book={book} onPress={() => navigation.navigate("Detail", { bookId: book.id })} />)}</> : <Text style={s.emptyText}>{text("noBooksAvailable")}</Text>}
-    </>}
+    {query.length > 0 ? <><SectionTitle title={text("resultsTitle")} hint={`${filtered.length} ${text("results")}`} />{filtered.length ? filtered.map((book) => <BookCard key={book.id} book={book} onPress={() => navigation.navigate("Detail", { bookId: book.id })} />) : <Text style={s.emptyText}>{text(books.length ? "noResults" : "noBooksAvailable")}</Text>}</> :
+      <HomeBookshelf onOpen={(bookId) => navigation.navigate("Detail", { bookId })} />}
   </ScrollView>;
 }
 
@@ -466,8 +504,22 @@ export default function App() {
 
 function createUi(C: typeof LIGHT) {
 const reader = LIGHT;
+const shelf = C === DARK
+  ? { backing: "#45382E", recess: "#30261F", deck: "#66513E", ledge: "#594534", edge: "#80664E" }
+  : { backing: "#C2A487", recess: "#A48970", deck: "#D6BA9B", ledge: "#9D7959", edge: "#E2C5A5" };
 const s = StyleSheet.create({
-  turningPage: { flex: 1 },
+  bookshelf: { marginBottom: 24, borderRadius: 12, overflow: "hidden" },
+  shelfBacking: { backgroundColor: shelf.backing },
+  shelfRecess: { position: "absolute", top: 0, left: 0, right: 0, height: 5, backgroundColor: shelf.recess },
+  shelfDeck: { position: "absolute", bottom: 12, left: 0, right: 0, height: 27, backgroundColor: shelf.deck },
+  shelfBooks: { flexGrow: 1, alignItems: "flex-end", gap: 19, paddingHorizontal: 17, paddingTop: 21, paddingBottom: 5 },
+  shelfBook: { width: 122, height: 161, borderWidth: 2, borderColor: "transparent", borderRadius: 6 },
+  shelfBookFocused: { borderColor: C.teal },
+  shelfBookShadow: { position: "absolute", bottom: 0, left: 5, right: 4, height: 7, borderRadius: 7, backgroundColor: "#28170D38" },
+  shelfCover: { flex: 0, width: "100%", height: "100%" },
+  shelfLedge: { height: 12, backgroundColor: shelf.ledge, borderTopWidth: 2, borderTopColor: shelf.edge },
+  coverArtwork: { width: 90, height: 120 },
+  coverArtworkLarge: { width: 143, height: 191 },
   tabsSafeArea: { flex: 1, backgroundColor: C.paper },
   screen: { flex: 1, backgroundColor: C.paper }, page: { paddingHorizontal: 22, paddingTop: 19, paddingBottom: 38 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
