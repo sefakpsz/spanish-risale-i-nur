@@ -16,7 +16,6 @@ import { BookmarkIcon } from "./src/components/BookmarkIcon";
 import { ThemeIcon } from "./src/components/ThemeIcon";
 import { isPointHeading } from "./src/content/pointHeadings";
 
-
 type RootStack = { Tabs: undefined; Detail: { bookId: string }; Reader: { bookId: string; chapterIndex?: number } };
 type Tabs = { Home: undefined; Library: undefined; Saved: undefined };
 const Stack = createNativeStackNavigator<RootStack>();
@@ -259,87 +258,13 @@ function PageScrubber({ value, count, onChange, label, pageLabel }: { value: num
   </View>;
 }
 
-function ReaderScreen({ route, navigation }: NativeStackScreenProps<RootStack, "Reader">) {
-  const { s, C } = useUi();
-  const book = findBook(route.params.bookId);
-  const { progress, ready, setProgress, toggleBookmark, isBookmarked } = useReading();
+const ReaderPage = React.memo(function ReaderPage({ chapter, fontSize }: { chapter: Book["chapters"][number]; fontSize: number }) {
+  const { s } = useUi();
   const { text } = useLocale();
-  const [fontSize, setFontSize] = useState(19);
-  const [index, setIndex] = useState(() => Math.min(route.params.chapterIndex ?? progress[route.params.bookId] ?? 0, (book?.chapters.length ?? 1) - 1));
-  const [resolved, setResolved] = useState(false);
-  const pageOpacity = useRef(new Animated.Value(1)).current;
-  const pageOffset = useRef(new Animated.Value(0)).current;
-  const turning = useRef(false);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const chapter = book?.chapters[index];
-  useEffect(() => {
-    if (!ready || resolved || !book) return;
-    setIndex(Math.min(route.params.chapterIndex ?? progress[book.id] ?? 0, book.chapters.length - 1));
-    setResolved(true);
-  }, [book, progress, ready, resolved, route.params.chapterIndex]);
-  useEffect(() => { if (ready && resolved && book) setProgress(book.id, index); }, [book, index, ready, resolved, setProgress]);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
-    return () => subscription.remove();
-  }, []);
-  useEffect(() => () => { pageOpacity.stopAnimation(); pageOffset.stopAnimation(); }, [pageOpacity, pageOffset]);
-  if (!book || !chapter) return <View style={s.screen}><Text style={s.emptyText}>{text("unavailableChapter")}</Text></View>;
-  if (!ready || !resolved) return <View style={s.readerScreen}><Text style={s.emptyText}>{text("preparing")}</Text></View>;
-  const bookmarked = isBookmarked(book.id, chapter.id);
   const preservesSourcePlacement = Boolean(chapter.inlineTitle);
   const bodyFontSize = fontSize - 2;
-  const displayedPageNumber = chapter.displayPageNumber ?? chapter.sourcePageNumber ?? chapter.pageIndex;
-  const currentSectionTitle = book.chapters.slice(0, index + 1).reduce<string | undefined>((title, item) => item.isSectionStart ? item.title : title, undefined);
-  const turnTo = (next: number, trigger: "button" | "swipe" | "slider") => {
-    if (turning.current || next === index || next < 0 || next >= book.chapters.length) return;
-    turning.current = true;
-    if (reduceMotion) {
-      setIndex(next);
-      setProgress(book.id, next);
-      turning.current = false;
-      return;
-    }
-    const direction = next > index ? 1 : -1;
-    const distance = trigger === "swipe" ? 20 : trigger === "slider" ? 8 : 0;
-    const exitDuration = trigger === "swipe" ? 125 : trigger === "slider" ? 150 : 140;
-    const enterDuration = trigger === "swipe" ? 180 : trigger === "slider" ? 210 : 190;
-    Animated.parallel([
-      Animated.timing(pageOpacity, { toValue: 0, duration: exitDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(pageOffset, { toValue: -direction * distance, duration: exitDuration, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (!finished) { pageOpacity.setValue(1); pageOffset.setValue(0); turning.current = false; return; }
-      pageOffset.setValue(direction * distance);
-      setIndex(next);
-      setProgress(book.id, next);
-      requestAnimationFrame(() => Animated.parallel([
-        Animated.timing(pageOpacity, { toValue: 1, duration: enterDuration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(pageOffset, { toValue: 0, duration: enterDuration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]).start(() => { turning.current = false; }));
-    });
-  };
-  const onReaderTouchEnd = (x: number, y: number) => {
-    const start = touchStart.current;
-    touchStart.current = null;
-    if (!start) return;
-    const dx = x - start.x;
-    const dy = y - start.y;
-    if (Math.abs(dx) >= 75 && Math.abs(dx) > Math.abs(dy) * 1.4) turnTo(index + (dx < 0 ? 1 : -1), "swipe");
-  };
-  return <View style={s.readerScreen}>
-    <ExpoStatusBar style="dark" />
-    <SafeAreaView edges={["top"]} style={s.readerHeaderSafe}>
-      <View style={s.readerTop}>
-        <Pressable accessibilityRole="button" accessibilityLabel={text("back")} onPress={() => navigation.goBack()} hitSlop={4} style={({ pressed }) => [s.readerBackButton, pressed && s.readerBackButtonPressed]}><Text style={s.readerBackIcon}>‹</Text></Pressable>
-        <View style={s.readerHeaderCopy}>
-          <Text numberOfLines={2} style={s.readerBook}>{book.title}</Text>
-          {currentSectionTitle && <View style={s.readerSectionRow}><View style={s.readerSectionRule} /><Text numberOfLines={2} style={s.readerSectionTitle}>{currentSectionTitle}</Text></View>}
-        </View>
-        <Text style={s.readerChapter}>{displayedPageNumber ? `${text("pdfPage")} ${displayedPageNumber}` : `${text("chapter")} ${String(index + 1).padStart(2, "0")}`} · {book.chapters.length}</Text>
-      </View>
-    </SafeAreaView>
-    <Animated.View style={[s.turningPage, { opacity: pageOpacity, transform: [{ translateX: pageOffset }] }]}><ScrollView key={chapter.id} style={s.readingScroll} contentContainerStyle={[s.readingPage, preservesSourcePlacement && s.sourcePlacementPage]} onTouchStart={(event) => { touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY }; }} onTouchEnd={(event) => onReaderTouchEnd(event.nativeEvent.pageX, event.nativeEvent.pageY)} onTouchCancel={() => { touchStart.current = null; }} onScrollBeginDrag={() => { touchStart.current = null; }}>
+
+  return <View style={[s.readingPage, preservesSourcePlacement && s.sourcePlacementPage]}>
       {!preservesSourcePlacement && chapter.showTitleInReader !== false && <><View style={s.readingOrnament}><Text style={s.ornamentText}>✳</Text></View><Text style={s.readerTitle}>{chapter.title}</Text><View style={s.titleRule} /></>}
       {chapter.openingHeadingImage === "title-page" ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.artworkZoomRow} onTouchStart={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
         <Image source={require("./assets/RamadanTitlePage-local.png")} accessibilityLabel={chapter.artworkAccessibilityLabel ?? chapter.title} resizeMode="contain" style={{ width: Math.round(310 * fontSize / 19), height: Math.round(460 * fontSize / 19) }} />
@@ -357,10 +282,150 @@ function ReaderScreen({ route, navigation }: NativeStackScreenProps<RootStack, "
         {chapter.inlineTitle?.afterParagraph === i && <Text style={s.inlineSourceTitle}>{chapter.inlineTitle.value}</Text>}
       </React.Fragment>)}
       {chapter.text.trim().length > 0 && !chapter.imprintPage && <View style={s.endMark}><View style={s.endLine} /><View style={s.endLine} /></View>}
-    </ScrollView></Animated.View>
+  </View>;
+});
+
+function ReaderScreen({ route, navigation }: NativeStackScreenProps<RootStack, "Reader">) {
+  const { s, C } = useUi();
+  const book = findBook(route.params.bookId);
+  const { progress, ready, setProgress, toggleBookmark, isBookmarked } = useReading();
+  const { text } = useLocale();
+  const [fontSize, setFontSize] = useState(19);
+  const [index, setIndex] = useState(() => Math.min(route.params.chapterIndex ?? progress[route.params.bookId] ?? 0, (book?.chapters.length ?? 1) - 1));
+  const [resolved, setResolved] = useState(false);
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const pageHeights = useRef<number[]>([]);
+  const pendingPosition = useRef<number | null>(null);
+  const awaitingTextLayout = useRef(false);
+  const positionFrame = useRef<number | null>(null);
+  const visibleIndex = useRef(index);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const chapter = book?.chapters[index];
+  useEffect(() => {
+    if (!ready || resolved || !book) return;
+    const start = Math.max(0, Math.min(route.params.chapterIndex ?? progress[book.id] ?? 0, book.chapters.length - 1));
+    pendingPosition.current = start;
+    visibleIndex.current = start;
+    setIndex(start);
+    setResolved(true);
+  }, [book, progress, ready, resolved, route.params.chapterIndex]);
+  useEffect(() => { if (ready && resolved && book) setProgress(book.id, index); }, [book, index, ready, resolved, setProgress]);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
+    return () => subscription.remove();
+  }, []);
+  const pageOffset = useCallback((target: number) => {
+    if (target < 0 || pageHeights.current[target] === undefined) return;
+    let offset = 0;
+    for (let i = 0; i < target; i += 1) {
+      const height = pageHeights.current[i];
+      if (height === undefined) return;
+      offset += height;
+    }
+    return offset;
+  }, []);
+  const positionPendingPage = useCallback(() => {
+    if (pendingPosition.current === null || awaitingTextLayout.current || positionFrame.current !== null) return;
+    positionFrame.current = requestAnimationFrame(() => {
+      positionFrame.current = null;
+      const target = pendingPosition.current;
+      if (target === null || !viewportHeight || !scroll.current) return;
+      const offset = pageOffset(target);
+      if (offset === undefined) return;
+      pendingPosition.current = null;
+      scroll.current.scrollTo({ y: offset, animated: false });
+    });
+  }, [pageOffset, viewportHeight]);
+  useEffect(positionPendingPage, [positionPendingPage]);
+  useEffect(() => () => {
+    if (positionFrame.current !== null) cancelAnimationFrame(positionFrame.current);
+  }, []);
+  if (!book || !chapter) return <View style={s.screen}><Text style={s.emptyText}>{text("unavailableChapter")}</Text></View>;
+  if (!ready || !resolved) return <View style={s.readerScreen}><Text style={s.emptyText}>{text("preparing")}</Text></View>;
+  const bookmarked = isBookmarked(book.id, chapter.id);
+  const displayedPageNumber = chapter.displayPageNumber ?? chapter.sourcePageNumber ?? chapter.pageIndex;
+  const currentSectionTitle = book.chapters.slice(0, index + 1).reduce<string | undefined>((title, item) => item.isSectionStart ? item.title : title, undefined);
+  const turnTo = (next: number, trigger: "button" | "swipe" | "slider") => {
+    const offset = pageOffset(next);
+    if (offset === undefined || next === visibleIndex.current) return;
+    pendingPosition.current = null;
+    scroll.current?.scrollTo({ y: offset, animated: !reduceMotion && trigger !== "slider" });
+  };
+  const followScroll = (offset: number) => {
+    if (pendingPosition.current !== null) return;
+    // A page becomes current as its top crosses the reading area's top edge.
+    let next = 0;
+    let boundary = 0;
+    while (next < book.chapters.length - 1) {
+      const height = pageHeights.current[next];
+      if (height === undefined || boundary + height > offset + 1) break;
+      boundary += height;
+      next += 1;
+    }
+    if (next !== visibleIndex.current) {
+      visibleIndex.current = next;
+      setIndex(next);
+    }
+  };
+  const resizeText = (delta: number) => {
+    const next = Math.max(16, Math.min(26, fontSize + delta));
+    if (next === fontSize) return;
+    pendingPosition.current = visibleIndex.current;
+    awaitingTextLayout.current = true;
+    setFontSize(next);
+  };
+  const onReaderTouchEnd = (x: number, y: number) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const dx = x - start.x;
+    const dy = y - start.y;
+    if (Math.abs(dx) >= 75 && Math.abs(dx) > Math.abs(dy) * 1.4) turnTo(visibleIndex.current + (dx < 0 ? 1 : -1), "swipe");
+  };
+  return <View style={s.readerScreen}>
+    <ExpoStatusBar style="dark" />
+    <SafeAreaView edges={["top"]} style={s.readerHeaderSafe}>
+      <View style={s.readerTop}>
+        <Pressable accessibilityRole="button" accessibilityLabel={text("back")} onPress={() => navigation.goBack()} hitSlop={4} style={({ pressed }) => [s.readerBackButton, pressed && s.readerBackButtonPressed]}><Text style={s.readerBackIcon}>‹</Text></Pressable>
+        <View style={s.readerHeaderCopy}>
+          <Text numberOfLines={2} style={s.readerBook}>{book.title}</Text>
+          {currentSectionTitle && <View style={s.readerSectionRow}><View style={s.readerSectionRule} /><Text numberOfLines={2} style={s.readerSectionTitle}>{currentSectionTitle}</Text></View>}
+        </View>
+        <Text style={s.readerChapter}>{displayedPageNumber ? `${text("pdfPage")} ${displayedPageNumber}` : `${text("chapter")} ${String(index + 1).padStart(2, "0")}`} · {book.chapters.length}</Text>
+      </View>
+    </SafeAreaView>
+    <ScrollView
+      ref={scroll}
+      style={s.readingScroll}
+      scrollEventThrottle={16}
+      onLayout={({ nativeEvent }) => setViewportHeight(nativeEvent.layout.height)}
+      onContentSizeChange={() => {
+        awaitingTextLayout.current = false;
+        positionPendingPage();
+      }}
+      onScroll={({ nativeEvent }) => followScroll(nativeEvent.contentOffset.y)}
+      onTouchStart={({ nativeEvent }) => { touchStart.current = { x: nativeEvent.pageX, y: nativeEvent.pageY }; }}
+      onTouchEnd={({ nativeEvent }) => onReaderTouchEnd(nativeEvent.pageX, nativeEvent.pageY)}
+      onTouchCancel={() => { touchStart.current = null; }}
+      onScrollBeginDrag={() => { touchStart.current = null; pendingPosition.current = null; }}
+    >
+      {book.chapters.map((item, pageIndex) => <View
+        key={item.id}
+        style={pageIndex === book.chapters.length - 1 ? { minHeight: viewportHeight } : undefined}
+        onLayout={({ nativeEvent }) => {
+          pageHeights.current[pageIndex] = nativeEvent.layout.height;
+          positionPendingPage();
+        }}
+      >
+        <ReaderPage chapter={item} fontSize={fontSize} />
+      </View>)}
+    </ScrollView>
     <View style={s.readerFooter}>
       {book.chapters.length > 1 && <PageScrubber value={index} count={book.chapters.length} onChange={(next) => turnTo(next, "slider")} label={text("pageSlider")} pageLabel={text("pdfPage")} />}
-      <SafeAreaView edges={["bottom"]} style={s.readerFooterSafe}><View style={s.readerControls}><Pressable accessibilityLabel={text(displayedPageNumber ? "previousPage" : "previousChapter")} onPress={() => turnTo(index - 1, "button")} disabled={index === 0} style={s.pageButton}><Text style={[s.pageButtonText, index === 0 && s.disabled]}>←</Text></Pressable><View style={s.fontControls}><Pressable accessibilityLabel={text("decreaseText")} onPress={() => setFontSize((size) => Math.max(16, size - 1))} style={s.fontButton}><Text style={s.fontSmall}>A−</Text></Pressable><Text style={s.controlDivider}>│</Text><Pressable accessibilityLabel={text("increaseText")} onPress={() => setFontSize((size) => Math.min(26, size + 1))} style={s.fontButton}><Text style={s.fontLarge}>A+</Text></Pressable></View><Pressable accessibilityRole="button" accessibilityState={{ selected: bookmarked }} accessibilityLabel={bookmarked ? text("removeBookmark") : text("addBookmark")} onPress={() => toggleBookmark(book.id, chapter.id)} style={s.pageButton}><BookmarkIcon size={23} color={C.teal} filled={bookmarked} /></Pressable><Pressable accessibilityLabel={text(displayedPageNumber ? "nextPage" : "nextChapter")} onPress={() => turnTo(index + 1, "button")} disabled={index === book.chapters.length - 1} style={s.pageButton}><Text style={[s.pageButtonText, index === book.chapters.length - 1 && s.disabled]}>→</Text></Pressable></View></SafeAreaView>
+      <SafeAreaView edges={["bottom"]} style={s.readerFooterSafe}><View style={s.readerControls}><Pressable accessibilityLabel={text(displayedPageNumber ? "previousPage" : "previousChapter")} onPress={() => turnTo(index - 1, "button")} disabled={index === 0} style={s.pageButton}><Text style={[s.pageButtonText, index === 0 && s.disabled]}>←</Text></Pressable><View style={s.fontControls}><Pressable accessibilityLabel={text("decreaseText")} onPress={() => resizeText(-1)} style={s.fontButton}><Text style={s.fontSmall}>A−</Text></Pressable><Text style={s.controlDivider}>│</Text><Pressable accessibilityLabel={text("increaseText")} onPress={() => resizeText(1)} style={s.fontButton}><Text style={s.fontLarge}>A+</Text></Pressable></View><Pressable accessibilityRole="button" accessibilityState={{ selected: bookmarked }} accessibilityLabel={bookmarked ? text("removeBookmark") : text("addBookmark")} onPress={() => toggleBookmark(book.id, chapter.id)} style={s.pageButton}><BookmarkIcon size={23} color={C.teal} filled={bookmarked} /></Pressable><Pressable accessibilityLabel={text(displayedPageNumber ? "nextPage" : "nextChapter")} onPress={() => turnTo(index + 1, "button")} disabled={index === book.chapters.length - 1} style={s.pageButton}><Text style={[s.pageButtonText, index === book.chapters.length - 1 && s.disabled]}>→</Text></Pressable></View></SafeAreaView>
     </View>
   </View>;
 }
